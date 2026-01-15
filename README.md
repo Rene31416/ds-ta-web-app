@@ -52,6 +52,13 @@ pnpm dev -- --port 3010
 
 Open `http://localhost:3010`.
 
+### Docker
+From the backend repo root (`ds-ta`), run:
+
+```
+docker compose up --build
+```
+
 ### Google Calendar connect
 After logging in with Auth0, use **Connect Google** to grant calendar access.
 Booking creation is enabled only after Google Calendar is connected.
