@@ -2,15 +2,6 @@
 
 import { useEffect, useState } from "react";
 
-type AuthSession = {
-  accessToken: string;
-  user: {
-    id: number;
-    email: string;
-    name: string | null;
-  };
-};
-
 type Reservation = {
   id: number;
   name: string;
@@ -20,29 +11,7 @@ type Reservation = {
   updatedAt?: string;
 };
 
-const STORAGE_KEY = "ds-ta-auth";
-const readSession = (): AuthSession | null => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as AuthSession) : null;
-  } catch {
-    return null;
-  }
-};
-
-const clearSession = () => {
-  localStorage.removeItem(STORAGE_KEY);
-};
-
-const decodeJwtPayload = (token: string) => {
-  try {
-    const payload = token.split(".")[1];
-    const decoded = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
-    return JSON.parse(decoded) as { exp?: number };
-  } catch {
-    return null;
-  }
-};
+const GOOGLE_CONNECTED_KEY = "ds-ta-google-connected";
 
 const toLocalDateTimeInput = (value: string) => {
   const date = new Date(value);
@@ -61,14 +30,21 @@ const toLocalDateTimeInput = (value: string) => {
 };
 
 export default function Home() {
-  const [session, setSession] = useState<AuthSession | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [session, setSession] = useState<{
+    email?: string;
+    name?: string;
+  } | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [isLoadingReservations, setIsLoadingReservations] = useState(false);
   const [authStatus, setAuthStatus] = useState<
-    "idle" | "checking" | "ok" | "expired" | "error"
+    "idle" | "checking" | "ok" | "error"
   >("idle");
   const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const [googleStatus, setGoogleStatus] = useState<
+    "unknown" | "connected" | "missing"
+  >("unknown");
   const [formError, setFormError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [startAt, setStartAt] = useState("");
@@ -93,49 +69,45 @@ export default function Home() {
   };
 
   useEffect(() => {
-    setSession(readSession());
-  }, []);
-
-  useEffect(() => {
-    if (!session) {
-      setAuthStatus("idle");
-      setAuthMessage(null);
-      return;
-    }
-
-    const payload = decodeJwtPayload(session.accessToken);
-    if (payload?.exp && payload.exp * 1000 < Date.now()) {
-      clearSession();
-      setSession(null);
-      setAuthStatus("expired");
-      setAuthMessage("Your session expired. Please sign in again.");
-      return;
-    }
-
-    const validateSession = async () => {
+    const loadSession = async () => {
       setAuthStatus("checking");
       try {
-        const res = await fetch("/api/auth/me", {
-          headers: {
-            Authorization: `Bearer ${session.accessToken}`,
-          },
-        });
-        if (!res.ok) {
-          throw new Error("Invalid session.");
+        const res = await fetch("/api/auth/me");
+        const data = (await res.json()) as {
+          user?: { email?: string; name?: string };
+          profile?: { googleId?: string | null };
+          message?: string;
+        };
+
+        if (!res.ok || !data.user) {
+          setSession(null);
+          setAuthStatus("error");
+          setAuthMessage("Please sign in with Auth0.");
+          setGoogleStatus("unknown");
+          return;
         }
+
+        setSession({
+          email: data.user.email,
+          name: data.user.name,
+        });
+
+        const hasGoogle = Boolean(data.profile?.googleId);
+        const localGoogle = localStorage.getItem(GOOGLE_CONNECTED_KEY);
+        setGoogleStatus(hasGoogle || localGoogle ? "connected" : "missing");
         setAuthStatus("ok");
         setAuthMessage(null);
       } catch (error) {
         console.error(error);
-        clearSession();
         setSession(null);
         setAuthStatus("error");
         setAuthMessage("We could not validate your session.");
+        setGoogleStatus("unknown");
       }
     };
 
-    validateSession();
-  }, [session]);
+    loadSession();
+  }, []);
 
   useEffect(() => {
     if (!session) {
@@ -146,11 +118,7 @@ export default function Home() {
     const loadReservations = async () => {
       setIsLoadingReservations(true);
       try {
-        const res = await fetch("/api/reservations", {
-          headers: {
-            Authorization: `Bearer ${session.accessToken}`,
-          },
-        });
+        const res = await fetch("/api/reservations");
         const data = (await res.json()) as Reservation[];
         if (!res.ok) {
           throw new Error("Unable to load bookings.");
@@ -166,25 +134,30 @@ export default function Home() {
     loadReservations();
   }, [session]);
 
-  const handleLogin = async () => {
-    setIsLoading(true);
+  const handleAuth0Login = () => {
+    setIsAuthLoading(true);
+    window.location.href = "/api/auth/login";
+  };
+
+  const handleAuth0Logout = () => {
+    localStorage.removeItem(GOOGLE_CONNECTED_KEY);
+    window.location.href = "/api/auth/logout";
+  };
+
+  const handleGoogleConnect = async () => {
+    setIsGoogleLoading(true);
     try {
       const res = await fetch("/api/auth/google-url");
       const data = (await res.json()) as { url?: string; message?: string };
       if (!res.ok || !data.url) {
-        throw new Error(data.message || "Unable to start login.");
+        throw new Error(data.message || "Unable to start Google connect.");
       }
       window.location.href = data.url;
     } catch (error) {
       console.error(error);
-      setIsLoading(false);
-      alert("Unable to start Google login.");
+      setIsGoogleLoading(false);
+      alert("Unable to start Google connect.");
     }
-  };
-
-  const handleLogout = () => {
-    clearSession();
-    setSession(null);
   };
 
   const handleCreateReservation = async () => {
@@ -215,7 +188,6 @@ export default function Home() {
       const res = await fetch("/api/reservations", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${session.accessToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -245,9 +217,6 @@ export default function Home() {
     try {
       const res = await fetch(`/api/reservations/${id}`, {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${session.accessToken}`,
-        },
       });
       if (!res.ok) {
         throw new Error("Unable to delete.");
@@ -303,7 +272,6 @@ export default function Home() {
       const res = await fetch(`/api/reservations/${editingId}`, {
         method: "PATCH",
         headers: {
-          Authorization: `Bearer ${session.accessToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -351,9 +319,9 @@ export default function Home() {
             <div className="space-y-4">
               <div>
                 <p className="text-sm text-slate-500">Signed in user</p>
-                <p className="text-lg font-semibold">{session.user.email}</p>
+                <p className="text-lg font-semibold">{session.email}</p>
                 <p className="text-sm text-slate-600">
-                  {session.user.name || "No name"}
+                  {session.name || "No name"}
                 </p>
               </div>
               <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-600">
@@ -363,17 +331,18 @@ export default function Home() {
                     ? "checking..."
                     : authStatus === "ok"
                       ? "active"
-                      : authStatus === "expired"
-                        ? "expired"
-                        : authStatus === "error"
-                          ? "error"
-                          : "unknown"}
+                      : authStatus === "error"
+                        ? "error"
+                        : "unknown"}
                 </p>
-                <p>Google Calendar: authorized</p>
+                <p>
+                  Google Calendar:{" "}
+                  {googleStatus === "connected" ? "connected" : "not connected"}
+                </p>
                 {authMessage ? <p>{authMessage}</p> : null}
               </div>
               <button
-                onClick={handleLogout}
+                onClick={handleAuth0Logout}
                 className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 Sign out
@@ -382,14 +351,14 @@ export default function Home() {
           ) : (
             <div className="space-y-4">
               <p className="text-sm text-slate-600">
-                Connect your account to continue.
+                Sign in with Auth0 to continue.
               </p>
               <button
-                onClick={handleLogin}
-                disabled={isLoading}
+                onClick={handleAuth0Login}
+                disabled={isAuthLoading}
                 className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
               >
-                {isLoading ? "Opening Google..." : "Connect with Google"}
+                {isAuthLoading ? "Redirecting..." : "Sign in with Auth0"}
               </button>
             </div>
           )}
@@ -397,14 +366,44 @@ export default function Home() {
 
         {session ? (
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold">Google Calendar</h2>
+                <p className="text-sm text-slate-600">
+                  Connect your calendar to check availability conflicts.
+                </p>
+              </div>
+              <button
+                onClick={handleGoogleConnect}
+                disabled={isGoogleLoading}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isGoogleLoading
+                  ? "Opening Google..."
+                  : googleStatus === "connected"
+                    ? "Reconnect Google"
+                    : "Connect Google"}
+              </button>
+            </div>
+          </section>
+        ) : null}
+
+        {session ? (
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="space-y-4">
               <h2 className="text-lg font-semibold">Create booking</h2>
+              {googleStatus !== "connected" ? (
+                <p className="text-sm text-amber-600">
+                  Connect Google Calendar to enable booking creation.
+                </p>
+              ) : null}
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="text-sm text-slate-600">
                   Name
                   <input
                     value={name}
                     onChange={(event) => setName(event.target.value)}
+                    disabled={googleStatus !== "connected"}
                     className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                     placeholder="Client meeting"
                   />
@@ -415,6 +414,7 @@ export default function Home() {
                     type="datetime-local"
                     value={startAt}
                     onChange={(event) => setStartAt(event.target.value)}
+                    disabled={googleStatus !== "connected"}
                     className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                   />
                 </label>
@@ -424,6 +424,7 @@ export default function Home() {
                     type="datetime-local"
                     value={endAt}
                     onChange={(event) => setEndAt(event.target.value)}
+                    disabled={googleStatus !== "connected"}
                     className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                   />
                 </label>
@@ -433,6 +434,7 @@ export default function Home() {
               ) : null}
               <button
                 onClick={handleCreateReservation}
+                disabled={googleStatus !== "connected"}
                 className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
               >
                 Save booking
