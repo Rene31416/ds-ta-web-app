@@ -55,6 +55,7 @@ export default function Home() {
   const [editEndAt, setEditEndAt] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
 
+  // Maps backend errors to simple messages for the UI.
   const formatReservationError = (message: string) => {
     if (message.includes("Google Calendar")) {
       return "A Google Calendar event conflicts with this time.";
@@ -68,6 +69,7 @@ export default function Home() {
     return "Unable to create the booking.";
   };
 
+  // Loads Auth0 session and calendar connection state.
   useEffect(() => {
     const loadSession = async () => {
       setAuthStatus("checking");
@@ -109,6 +111,7 @@ export default function Home() {
     loadSession();
   }, []);
 
+  // Fetches bookings after login.
   useEffect(() => {
     if (!session) {
       setReservations([]);
@@ -134,16 +137,19 @@ export default function Home() {
     loadReservations();
   }, [session]);
 
+  // Redirects to Auth0 login.
   const handleAuth0Login = () => {
     setIsAuthLoading(true);
     window.location.href = "/api/auth/login";
   };
 
+  // Redirects to Auth0 logout.
   const handleAuth0Logout = () => {
     localStorage.removeItem(GOOGLE_CONNECTED_KEY);
     window.location.href = "/api/auth/logout";
   };
 
+  // Starts Google Calendar connection flow.
   const handleGoogleConnect = async () => {
     setIsGoogleLoading(true);
     try {
@@ -160,6 +166,7 @@ export default function Home() {
     }
   };
 
+  // Creates a booking in the backend.
   const handleCreateReservation = async () => {
     if (!session) return;
     setFormError(null);
@@ -212,6 +219,7 @@ export default function Home() {
     }
   };
 
+  // Deletes a booking in the backend.
   const handleDeleteReservation = async (id: number) => {
     if (!session) return;
     try {
@@ -228,6 +236,7 @@ export default function Home() {
     }
   };
 
+  // Opens inline edit mode for one booking.
   const startEditing = (item: Reservation) => {
     setEditingId(item.id);
     setEditName(item.name);
@@ -244,6 +253,7 @@ export default function Home() {
     setEditError(null);
   };
 
+  // Saves changes for a booking.
   const handleUpdateReservation = async () => {
     if (!session || editingId === null) return;
     setEditError(null);

@@ -12,6 +12,7 @@ export default function AuthCallbackPage() {
   const [status, setStatus] = useState<"loading" | "error">("loading");
   const [message, setMessage] = useState("Connecting Google Calendar...");
 
+  // Exchanges the Google OAuth code for calendar access.
   useEffect(() => {
     if (hasRun.current) return;
     hasRun.current = true;

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 const backendBase = process.env.BACKEND_URL ?? "http://localhost:3000";
 
+// Gets Google OAuth URL from backend.
 export async function GET() {
   try {
     const res = await fetch(`${backendBase}/auth/google/url`, {

@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Reservations Web App (Next.js + Auth0)
 
-## Getting Started
+Frontend for booking time slots with Auth0 authentication and Google Calendar conflict checks.
 
-First, run the development server:
+### Features
+- Auth0 login/logout.
+- Google Calendar connect (separate consent flow).
+- Create, edit, and cancel bookings.
+- Conflict feedback when a calendar event or booking overlaps.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+### Requirements
+- Node.js + pnpm
+- Backend API running (default `http://localhost:3000`)
+
+### Environment
+Create `.env.local` based on `.env.local.example`:
+
+```
+AUTH0_SECRET="replace-with-a-long-random-string"
+AUTH0_DOMAIN="your-tenant.us.auth0.com"
+AUTH0_CLIENT_ID="YOUR_AUTH0_CLIENT_ID"
+AUTH0_CLIENT_SECRET="YOUR_AUTH0_CLIENT_SECRET"
+AUTH0_AUDIENCE="YOUR_AUTH0_AUDIENCE"
+APP_BASE_URL="http://localhost:3010"
+BACKEND_URL="http://localhost:3000"
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Generate `AUTH0_SECRET` with:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+openssl rand -hex 32
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Auth0 Configuration
+In Auth0 Application settings add:
+- Allowed Callback URLs: `http://localhost:3010/api/auth/callback`
+- Allowed Logout URLs: `http://localhost:3010`
+- Allowed Web Origins: `http://localhost:3010`
 
-## Learn More
+### Run locally
+Install deps:
 
-To learn more about Next.js, take a look at the following resources:
+```
+pnpm install
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Start the dev server on a different port than the backend:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+pnpm dev -- --port 3010
+```
 
-## Deploy on Vercel
+Open `http://localhost:3010`.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Google Calendar connect
+After logging in with Auth0, use **Connect Google** to grant calendar access.
+Booking creation is enabled only after Google Calendar is connected.

@@ -3,6 +3,7 @@ import { auth0 } from "@/lib/auth0";
 
 const backendBase = process.env.BACKEND_URL ?? "http://localhost:3000";
 
+// Sends Google OAuth code to backend with Auth0 token.
 export async function POST(req: Request) {
   try {
     const session = await auth0.getSession();

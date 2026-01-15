@@ -3,6 +3,7 @@ import { auth0 } from "@/lib/auth0";
 
 const backendBase = process.env.BACKEND_URL ?? "http://localhost:3000";
 
+// Validates Auth0 session and forwards token to backend.
 export async function GET() {
   try {
     const session = await auth0.getSession();
