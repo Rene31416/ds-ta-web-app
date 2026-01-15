@@ -1,19 +1,26 @@
 import { NextResponse } from "next/server";
+import { auth0 } from "@/lib/auth0";
 
 const backendBase = process.env.BACKEND_URL ?? "http://localhost:3000";
 
-const getAuthHeader = (request: Request) =>
-  request.headers.get("authorization") ?? "";
+const getToken = async () => {
+  const session = await auth0.getSession();
+  if (!session) {
+    return null;
+  }
+  const { token } = await auth0.getAccessToken();
+  return token ?? null;
+};
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    const authHeader = getAuthHeader(request);
-    if (!authHeader) {
+    const accessToken = await getToken();
+    if (!accessToken) {
       return NextResponse.json({ message: "Missing token." }, { status: 401 });
     }
 
     const res = await fetch(`${backendBase}/reservations`, {
-      headers: { Authorization: authHeader },
+      headers: { Authorization: `Bearer ${accessToken}` },
       cache: "no-store",
     });
 
@@ -37,8 +44,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const authHeader = getAuthHeader(request);
-    if (!authHeader) {
+    const accessToken = await getToken();
+    if (!accessToken) {
       return NextResponse.json({ message: "Missing token." }, { status: 401 });
     }
 
@@ -46,7 +53,7 @@ export async function POST(request: Request) {
     const res = await fetch(`${backendBase}/reservations`, {
       method: "POST",
       headers: {
-        Authorization: authHeader,
+        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),

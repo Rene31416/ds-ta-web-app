@@ -1,16 +1,22 @@
 import { NextResponse } from "next/server";
+import { auth0 } from "@/lib/auth0";
 
 const backendBase = process.env.BACKEND_URL ?? "http://localhost:3000";
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    const authHeader = request.headers.get("authorization") ?? "";
-    if (!authHeader) {
+    const session = await auth0.getSession();
+    if (!session) {
+      return NextResponse.json({ message: "Missing session." }, { status: 401 });
+    }
+
+    const { token } = await auth0.getAccessToken();
+    if (!token) {
       return NextResponse.json({ message: "Missing token." }, { status: 401 });
     }
 
     const res = await fetch(`${backendBase}/auth/me`, {
-      headers: { Authorization: authHeader },
+      headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
     });
 
@@ -22,7 +28,7 @@ export async function GET(request: Request) {
       );
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json({ user: session.user, profile: data });
   } catch (error) {
     console.error(error);
     return NextResponse.json(

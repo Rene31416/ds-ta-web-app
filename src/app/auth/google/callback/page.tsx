@@ -3,23 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-type AuthSession = {
-  accessToken: string;
-  user: {
-    id: number;
-    email: string;
-    name: string | null;
-  };
-};
-
-const STORAGE_KEY = "ds-ta-auth";
+const GOOGLE_CONNECTED_KEY = "ds-ta-google-connected";
 
 export default function AuthCallbackPage() {
   const params = useSearchParams();
   const router = useRouter();
   const hasRun = useRef(false);
   const [status, setStatus] = useState<"loading" | "error">("loading");
-  const [message, setMessage] = useState("Processing sign-in...");
+  const [message, setMessage] = useState("Connecting Google Calendar...");
 
   useEffect(() => {
     if (hasRun.current) return;
@@ -40,24 +31,22 @@ export default function AuthCallbackPage() {
           body: JSON.stringify({ code }),
         });
 
-        const data = (await res.json()) as
-          | AuthSession
-          | { message?: string };
+        const data = (await res.json()) as { ok?: boolean; message?: string };
 
-        if (!res.ok || !("accessToken" in data)) {
+        if (!res.ok || !data.ok) {
           throw new Error(
             "message" in data && data.message
               ? data.message
-              : "Unable to authenticate.",
+              : "Unable to connect Google Calendar.",
           );
         }
 
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        localStorage.setItem(GOOGLE_CONNECTED_KEY, "1");
         router.replace("/");
       } catch (error) {
         console.error(error);
         setStatus("error");
-        setMessage("We could not complete the sign-in.");
+        setMessage("We could not complete the Google connection.");
       }
     };
 
@@ -67,14 +56,14 @@ export default function AuthCallbackPage() {
   return (
     <div className="min-h-screen bg-slate-50 px-6 py-16 text-slate-900">
       <main className="mx-auto flex w-full max-w-lg flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
-        <h1 className="text-xl font-semibold">Authentication</h1>
+        <h1 className="text-xl font-semibold">Google Calendar</h1>
         <p className="text-sm text-slate-600">{message}</p>
         {status === "error" ? (
           <button
             onClick={() => router.push("/")}
             className="mt-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
-            Back to home
+            Back to dashboard
           </button>
         ) : null}
       </main>
